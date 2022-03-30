@@ -8,7 +8,4 @@ sudo apt-get update && sudo apt-get install -y curl
 bash <(curl -fsSL https://raw.githubusercontent.com/shidahuilang/YJBY-openwrt/main/local.sh)
 ```
 ---
-- windons子系统ubuntu专用一键编译openwrt命令:
-```
-bash <(curl -fsSL https://raw.githubusercontent.com/shidahuilang/YJBY-openwrt/main/wsl.sh)
-```
+
