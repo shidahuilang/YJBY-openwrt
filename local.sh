@@ -1,4 +1,3 @@
-
 #!/usr/bin/env bash
 
 #====================================================
@@ -27,6 +26,7 @@ export BASE_PATH="${HOME_PATH}/package/base-files/files"
 export NETIP="${HOME_PATH}/package/base-files/files/etc/networkip"
 export DELETE="${HOME_PATH}/package/base-files/files/etc/deletefile"
 export date1="$(date +'%m-%d')"
+export bendi_script="1"
 
 function print_ok() {
   echo
@@ -157,10 +157,19 @@ function op_kongjian() {
 function op_diywenjian() {
   cd ${GITHUB_WORKSPACE}
   if [[ ! -d ${GITHUB_WORKSPACE}/OP_DIY ]]; then
-    rm -rf YJBY-openwrt && git clone https://github.com/shidahuilang/YJBY-openwrt ${GITHUB_WORKSPACE}/YJBY-openwrt
-    judge "OP_DIY文件下载"
-    cp -Rf ${GITHUB_WORKSPACE}/YJBY-openwrt/OP_DIY ${GITHUB_WORKSPACE}/OP_DIY
-    rm -rf ${GITHUB_WORKSPACE}/YJBY-openwrt
+    rm -rf bendi && git clone https://github.com/shidahuilang/openwrt bendi
+    mv -f ${GITHUB_WORKSPACE}/bendi/build ${GITHUB_WORKSPACE}/OP_DIY
+    rm -rf ${GITHUB_WORKSPACE}/OP_DIY/*/start-up
+    rm -rf ${GITHUB_WORKSPACE}/OP_DIY/*/.config
+    if [[ -d ${GITHUB_WORKSPACE}/OP_DIY ]]; then
+      rm -rf bendi && git clone https://github.com/shidahuilang/common bendi
+      judge  "OP_DIY文件下载"
+      cp -Rf ${GITHUB_WORKSPACE}/bendi/OP_DIY/* ${GITHUB_WORKSPACE}/OP_DIY/
+    else
+      print_error "OP_DIY文件下载失败"
+      exit 1
+    fi
+    rm -rf ${GITHUB_WORKSPACE}/bendi
   fi
 }
 
@@ -225,6 +234,7 @@ function op_jiaoben() {
   [[ "${Tishi}" == "1" ]] && sed -i '/-rl/d' "${BUILD_PATH}/${DIY_PART_SH}"
   rm -rf ${HOME_PATH}/build/common && git clone https://github.com/shidahuilang/common ${HOME_PATH}/build/common
   judge "额外扩展文件下载"
+  rm -rf ${HOME_PATH}/build/common/OP_DIY
   mv -f ${LOCAL_Build}/common/*.sh ${BUILD_PATH}
   chmod -R +x ${BUILD_PATH}
   source "${BUILD_PATH}/common.sh" && Bendi_variable
@@ -237,15 +247,9 @@ function op_diy_zdy() {
   source "${BUILD_PATH}/common.sh" && Diy_menu
 }
 
-function op_diy_zdy2() {
-  cd ${HOME_PATH}
-  chmod -R +x ${GITHUB_WORKSPACE}/OP_DIY
-  source ${GITHUB_WORKSPACE}/OP_DIY/${matrixtarget}/${DIY_TRAP_SH}
-}
-
 function op_diy_ip() {
   cd ${HOME_PATH}
-  IP="$(grep 'network.lan.ipaddr=' ${BUILD_PATH}/$DIY_TRAP_SH |cut -f1 -d# |egrep -o "[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+")"
+  IP="$(grep 'network.lan.ipaddr=' ${BUILD_PATH}/$DIY_PART_SH |cut -f1 -d# |egrep -o "[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+")"
   [[ -z "${IP}" ]] && IP="$(grep 'ipaddr:' ${HOME_PATH}/package/base-files/files/bin/config_generate |egrep -o "[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+")"
   echo "${Mark_Core}" > ${HOME_PATH}/${Mark_Core}
   echo
@@ -286,7 +290,7 @@ function make_defconfig() {
     ;;
     esac
   fi
-  source "${BUILD_PATH}/common.sh" && Diy_menu3
+  source "${BUILD_PATH}/common.sh" && Diy_menu2
 }
 
 function tixing_op_config() {
@@ -302,7 +306,20 @@ function tixing_op_config() {
     export TARGET_PROFILE="$(awk -F '[="]+' '/TARGET_BOARD/{print $2}' ${GITHUB_WORKSPACE}/OP_DIY/${matrixtarget}/${CONFIG_FILE})"
   fi
   export TARGET_BSGET="$HOME_PATH/bin/targets/$TARGET_BOARD/$TARGET_SUBTARGET"
-  [[ -z ${TARGET_PROFILE} ]] && TARGET_PROFILE="OP_DIY/${matrixtarget}没有${CONFIG_FILE}文件,或者${CONFIG_FILE}文件内容为空"
+  [[ -z "${TARGET_PROFILE}" ]] && TARGET_PROFILE="OP_DIY/${matrixtarget}没有${CONFIG_FILE}文件,或者${CONFIG_FILE}文件内容为空"
+}
+
+function chenggong_op_config() {
+  if [[ `grep -c "CONFIG_TARGET_x86_64=y" "${BUILD_PATH}/.config"` -eq '1' ]]; then
+    export CG_PROFILE="x86-64"
+  elif [[ `grep -c "CONFIG_TARGET_x86=y" ${BUILD_PATH}/.config` == '1' ]] && [[ `grep -c "CONFIG_TARGET_x86_64=y" "${BUILD_PATH}/.config"` == '0' ]]; then
+    export CG_PROFILE="x86_32"
+  elif [[ `grep -c "CONFIG_TARGET.*DEVICE.*=y" "${BUILD_PATH}/.config"` -eq '1' ]]; then
+    export CG_PROFILE="$(egrep -o "CONFIG_TARGET.*DEVICE.*=y" "${BUILD_PATH}/.config" | sed -r 's/.*DEVICE_(.*)=y/\1/')"
+  else
+    export CG_PROFILE="$(awk -F '[="]+' '/TARGET_BOARD/{print $2}' ${BUILD_PATH}/.config)"
+  fi
+  [[ -z "${CG_PROFILE}" ]] && CG_PROFILE="未知"
 }
 
 function op_upgrade2() {
@@ -409,6 +426,7 @@ function op_make() {
     rm -rf ${LOCAL_Build}/shibai > /dev/null 2>&1
     echo "chenggong" >${LOCAL_Build}/chenggong
     rm -rf ${HOME_PATH}/build.log
+    ./scripts/diffconfig.sh > ${BUILD_PATH}/.config
   fi
 }
 
@@ -416,7 +434,8 @@ function op_upgrade3() {
   cd ${HOME_PATH}
   if [[ "${REGULAR_UPDATE}" == "true" ]]; then
     [[ -d "${HOME_PATH}/bin/Firmware" ]] && rm -fr ${HOME_PATH}/bin/Firmware/*
-    [[ -d "${HOME_PATH}/upgrade" ]] && rm -rf ${HOME_PATH}/upgrade && cp -Rf ${TARGET_BSGET} ${HOME_PATH}/upgrade
+    [[ -d "${HOME_PATH}/upgrade" ]] && rm -rf ${HOME_PATH}/upgrade
+    cp -Rf ${TARGET_BSGET} ${HOME_PATH}/upgrade
     source ${BUILD_PATH}/upgrade.sh && Diy_Part3
   fi
   if [[ `ls -a ${HOME_PATH}/bin/Firmware | grep -c "${Upgrade_Date}"` -ge '1' ]]; then
@@ -603,7 +622,7 @@ function openwrt_gitpull() {
   fi
   git pull
   ECHOG "同步上游源码完毕,开始编译固件"
-  source "${BUILD_PATH}/common.sh" && Diy_menu4
+  source "${BUILD_PATH}/common.sh" && Diy_menu
 }
 
 function op_upgrade1() {
@@ -640,7 +659,6 @@ function openwrt_new() {
   op_repo_branch
   op_jiaoben
   op_diy_zdy
-  op_diy_zdy2
   op_diy_ip
   op_menuconfig
   make_defconfig
@@ -734,6 +752,7 @@ function Menu_requirements() {
   op_firmware > /dev/null 2>&1
   source ${GITHUB_WORKSPACE}/OP_DIY/${matrixtarget}/settings.ini > /dev/null 2>&1
   tixing_op_config > /dev/null 2>&1
+  chenggong_op_config > /dev/null 2>&1
   cd ${GITHUB_WORKSPACE}
 }
 
@@ -742,8 +761,9 @@ function menuop() {
   clear
   echo
   echo
-  echo -e " ${Blue}当前源码${Font}：${Green}${matrixtarget}${Font}"
-  echo -e " ${Blue}编译机型${Font}：${Green}${TARGET_PROFILE}${Font}"
+  echo -e " ${Blue}当前使用源码${Font}：${Green}${matrixtarget}${Font}"
+  echo -e " ${Blue}编译成功机型${Font}：${Green}${CG_PROFILE}${Font}"
+  echo -e " ${Blue}OP_DIY配置文件机型${Font}：${Green}${TARGET_PROFILE}${Font}"
   echo
   echo
   echo -e " 1${Green}.${Font}${Yellow}删除旧源码,使用[${matrixtarget}]源码全新编译${Font}(推荐)"
