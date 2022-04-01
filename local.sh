@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 #====================================================
 #	System Request:Ubuntu 18.04+/20.04+
 #	Author:	shidahuilang
@@ -20,6 +19,7 @@ ERROR="${Red}[ERROR]${Font}"
 
 # 变量
 export GITHUB_WORKSPACE="$PWD"
+export OP_DIY="${GITHUB_WORKSPACE}/OP_DIY"
 export HOME_PATH="${GITHUB_WORKSPACE}/openwrt"
 export LOCAL_Build="${HOME_PATH}/build"
 export BASE_PATH="${HOME_PATH}/package/base-files/files"
@@ -180,7 +180,11 @@ function bianyi_xuanxiang() {
   if [[ "${EVERY_INQUIRY}" == "true" ]]; then
     ECHOY "请在 OP_DIY/${matrixtarget} 里面设置好自定义文件"
     ZDYSZ="设置完毕后，按[Y/y]回车继续编译"
-    [[ "${WSL_ubuntu}" == "YES" ]] && explorer.exe .
+    if [[ "${WSL_ubuntu}" == "YES" ]]; then
+      cd ${GITHUB_WORKSPACE}/OP_DIY/${matrixtarget}
+      explorer.exe .
+      cd ${GITHUB_WORKSPACE}
+    fi
     while :; do
       read -p " ${ZDYSZ}： " ZDYSZU
       case $ZDYSZU in
@@ -214,7 +218,10 @@ function bianyi_xuanxiang() {
   ;;
   esac
   echo
-  sleep 2
+  echo
+  ECHOG "3秒后为您执行编译程序,请稍后..."
+  echo
+  sleep 3
 }
 
 function op_repo_branch() {
@@ -269,6 +276,27 @@ function op_menuconfig() {
   cd ${HOME_PATH}
   if [[ "${Menuconfig}" == "true" ]]; then
     make menuconfig
+    if [[ $? -ne 0 ]]; then
+      ECHOY "窗口分辨率太小，无法弹出设置更机型或插件的窗口"
+      ECHOG "请调整窗口分辨率后按[Y/y]继续,或者按[N/n]退出编译"
+      XUANMA="请输入您的选择"
+      while :; do
+      read -p " ${XUANMA}：" Make
+      case $Make in
+      [Yy])
+	op_menuconfig
+	break
+      ;;
+      [Nn])
+	exit 1
+	break
+      ;;
+      *)
+        XUANMA="输入错误,请输入[Y/n]"
+      ;;
+      esac
+      done
+    fi
   fi
 }
 
@@ -377,6 +405,11 @@ function op_cpuxinghao() {
   clear
   ECHOG "您的CPU型号为[ ${Model_Name} ]"
   ECHOG "在Ubuntu使用核心数为[ ${Cpu_Cores} ],线程数为[ $(nproc) ]"
+  if [[ ${matrixtarget} == "openwrt_amlogic" ]]; then
+    ECHOG "使用[ ${matrixtarget} ]文件夹，编译[ N1和晶晨系列盒子专用固件 ]"
+  else
+    ECHOG "使用[ ${matrixtarget} ]文件夹，编译[ ${TARGET_PROFILE} ]"
+  fi
   if [[ "$(nproc)" == "1" ]]; then
     ECHOY "正在使用[$(nproc)线程]编译固件,预计要[3.5]小时左右,请耐心等待..."
   elif [[ "$(nproc)" =~ (2|3) ]]; then
@@ -457,12 +490,17 @@ function op_upgrade3() {
 
 function op_amlogic() {
   cd ${GITHUB_WORKSPACE}
-  if [[ `ls -a ${HOME_PATH}/bin/targets/armvirt/* | grep -c "tar.gz"` == '0' ]]; then
-    mkdir -p ${HOME_PATH}/bin/targets/armvirt/64
-    ECHOY "请先将openwrt-armvirt-64-default-rootfs.tar.gz固件存入"
-    ECHOYY "openwrt/bin/targets/armvirt/64文件夹内，再进行打包"
-    [[ "${WSL_ubuntu}" == "YES" ]] && explorer.exe .
+  if [[ `ls -1 "${HOME_PATH}/bin/targets/armvirt/64" | grep -c "tar.gz"` == '0' ]]; then
+    mkdir -p "${HOME_PATH}/bin/targets/armvirt/64"
+    clear
     echo
+    echo
+    echo
+    ECHOR "没发现您的 openwrt/bin/targets/armvirt/64 文件夹里存在.tar.gz固件，已为你创建了文件夹"
+    ECHORR "请先将\"openwrt-armvirt-64-default-rootfs.tar.gz\"固件"
+    ECHOR "存入 openwrt/bin/targets/armvirt/64 文件夹里面，再使用命令进行打包"
+    echo
+    [[ "${WSL_ubuntu}" == "YES" ]] && explorer.exe .
     exit 1
   fi
   if [[ ! -d "/home/dan/amlogic" ]]; then
@@ -514,7 +552,7 @@ function op_amlogic() {
   sudo rm -rf ${GITHUB_WORKSPACE}/amlogic/out/*
   sudo rm -rf ${GITHUB_WORKSPACE}/amlogic/openwrt-armvirt/*
   sudo rm -rf ${GITHUB_WORKSPACE}/amlogic/amlogic-s9xxx/amlogic-kernel/*
-  cp -Rf ${HOME_PATH}/bin/targets/armvirt/*/*.tar.gz ${GITHUB_WORKSPACE}/amlogic/openwrt-armvirt/ && sync
+  cp -Rf ${HOME_PATH}/bin/targets/armvirt/64/*.tar.gz ${GITHUB_WORKSPACE}/amlogic/openwrt-armvirt/openwrt-armvirt-64-default-rootfs.tar.gz && sync
   if [[ `ls -a amlogic/openwrt-armvirt | grep -c "openwrt-armvirt-64-default-rootfs.tar.gz"` == '0' ]]; then
     print_error "amlogic/openwrt-armvirt文件夹没发现openwrt-armvirt-64-default-rootfs.tar.gz固件存在"
     print_error "请检查${HOME_PATH}/bin/targets/armvirt/64文件夹内有没有openwrt-armvirt-64-default-rootfs.tar.gz固件存在"
@@ -525,7 +563,11 @@ function op_amlogic() {
   sudo ./make -d -b ${amlogic_model} -k ${amlogic_kernel}
   if [[ `ls -a ${GITHUB_WORKSPACE}/amlogic/out | grep -c "openwrt"` -ge '1' ]]; then
     print_ok "打包完成，固件存放在[amlogic/out]文件夹"
-    [[ "${WSL_ubuntu}" == "YES" ]] && explorer.exe .
+    if [[ "${WSL_ubuntu}" == "YES" ]]; then
+      cd ${GITHUB_WORKSPACE}/amlogic/out
+      explorer.exe .
+      cd amlogic
+    fi
   else
     print_error "打包失败，请再次尝试!"
   fi
@@ -551,7 +593,17 @@ function op_end() {
   else
     ECHOR "提示：再次输入编译命令可进行二次编译"
   fi
-  [[ "${WSL_ubuntu}" == "YES" ]] && explorer.exe .
+  if [[ "${WSL_ubuntu}" == "YES" ]]; then
+    if [[ "${REGULAR_UPDATE}" == "true" ]]; then
+      cd bin/Firmware
+      explorer.exe .
+      cd ${HOME_PATH}
+    else
+      cd ${TARGET_BSGET}
+      explorer.exe .
+      cd ${HOME_PATH}
+    fi
+  fi
   ECHOY "编译日期：$(date +'%Y年%m月%d号')"
   export END_TIME=`date +'%Y-%m-%d %H:%M:%S'`
   START_SECONDS=$(date --date="$START_TIME" +%s)
@@ -738,6 +790,7 @@ function menu() {
     ;;
     7)
       ECHOR "您选择了退出编译程序"
+      echo
       exit 0
     break
     ;;
@@ -762,11 +815,11 @@ function menuop() {
   echo
   echo
   echo -e " ${Blue}当前使用源码${Font}：${Green}${matrixtarget}${Font}"
-  echo -e " ${Blue}编译成功机型${Font}：${Green}${CG_PROFILE}${Font}"
+  echo -e " ${Blue}当前成功编译机型${Font}：${Green}${CG_PROFILE}${Font}"
   echo -e " ${Blue}OP_DIY配置文件机型${Font}：${Green}${TARGET_PROFILE}${Font}"
   echo
   echo
-  echo -e " 1${Green}.${Font}${Yellow}删除旧源码,使用[${matrixtarget}]源码全新编译${Font}(推荐)"
+  echo -e " 1${Green}.${Font}${Yellow}删除旧源码,重新下载[${matrixtarget}]源码编译${Font}(推荐)"
   echo
   echo -e " 2${Green}.${Font}${Yellow}保留缓存同步上游仓库源码,再次编译${Font}"
   echo
@@ -777,9 +830,9 @@ function menuop() {
   echo -e " 5${Green}.${Font}${Yellow}退出${Font}"
   echo
   echo
-  XUANZHE="请输入数字"
+  XUANZop="请输入数字"
   while :; do
-  read -p " ${XUANZHE}：" menu_num
+  read -p " ${XUANZop}：" menu_num
   case $menu_num in
   1)
     openwrt_new
@@ -799,11 +852,12 @@ function menuop() {
   break
   ;;   
   5)
+    echo
     exit 0
     break
   ;;
   *)
-    XUANZHE="请输入正确的数字编号!"
+    XUANZop="请输入正确的数字编号!"
   ;;
   esac
   done
