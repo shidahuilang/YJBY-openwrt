@@ -8,4 +8,8 @@ sudo apt-get update && sudo apt-get install -y curl
 bash <(curl -fsSL https://raw.githubusercontent.com/shidahuilang/YJBY-openwrt/main/local.sh)
 ```
 ---
+- 制作config配置文件
 
+```sh
+bash <(curl -fsSL https://raw.githubusercontent.com/shidahuilang/YJBY-openwrt/main/makeconfig.sh)
+```
