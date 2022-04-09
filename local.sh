@@ -168,7 +168,7 @@ function op_kongjian() {
 function op_diywenjian() {
   cd ${GITHUB_WORKSPACE}
   if [[ ! -d ${GITHUB_WORKSPACE}/OP_DIY ]]; then
-    rm -rf bendi && git clone https://github.com/shidahuilang/build-actions bendi
+    rm -rf bendi && git clone https://github.com/shidahuilang/openwrt bendi
     mv -f ${GITHUB_WORKSPACE}/bendi/build ${GITHUB_WORKSPACE}/OP_DIY
     rm -rf ${GITHUB_WORKSPACE}/OP_DIY/*/start-up
     rm -rf ${GITHUB_WORKSPACE}/OP_DIY/*/.config
