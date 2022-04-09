@@ -25,6 +25,7 @@ export LOCAL_Build="${HOME_PATH}/build"
 export BASE_PATH="${HOME_PATH}/package/base-files/files"
 export NETIP="${HOME_PATH}/package/base-files/files/etc/networkip"
 export DELETE="${HOME_PATH}/package/base-files/files/etc/deletefile"
+export Author="$(grep "syslog" "/etc/group"|awk 'NR==1' |cut -d "," -f2)"
 export date1="$(date +'%m-%d')"
 export bendi_script="1"
 
@@ -125,6 +126,16 @@ cd ${GITHUB_WORKSPACE}
   judge "部署编译环境"
   sudo apt-get autoremove -y --purge > /dev/null 2>&1
   sudo apt-get clean -y > /dev/null 2>&1
+  if [[ `sudo grep -c "NOPASSWD:ALL" /etc/sudoers` == '0' ]]; then
+    sudo sed -i 's?%sudo.*?%sudo ALL=(ALL:ALL) NOPASSWD:ALL?g' /etc/sudoers
+  fi
+  if [[ -f /etc/ssh/sshd_config ]] && [[ `grep -c "ClientAliveInterval 30" /etc/ssh/sshd_config` == '0' ]]; then
+    sudo sed -i '/ClientAliveInterval/d' /etc/ssh/sshd_config
+    sudo sed -i '/ClientAliveCountMax/d' /etc/ssh/sshd_config
+    sudo sh -c 'echo ClientAliveInterval 30 >> /etc/ssh/sshd_config'
+    sudo sh -c 'echo ClientAliveCountMax 6 >> /etc/ssh/sshd_config'
+    sudo service ssh restart
+  fi
 }
 
 function op_kongjian() {
@@ -157,7 +168,7 @@ function op_kongjian() {
 function op_diywenjian() {
   cd ${GITHUB_WORKSPACE}
   if [[ ! -d ${GITHUB_WORKSPACE}/OP_DIY ]]; then
-    rm -rf bendi && git clone https://github.com/shidahuilang/openwrt bendi
+    rm -rf bendi && git clone https://github.com/shidahuilang/build-actions bendi
     mv -f ${GITHUB_WORKSPACE}/bendi/build ${GITHUB_WORKSPACE}/OP_DIY
     rm -rf ${GITHUB_WORKSPACE}/OP_DIY/*/start-up
     rm -rf ${GITHUB_WORKSPACE}/OP_DIY/*/.config
@@ -173,13 +184,40 @@ function op_diywenjian() {
   fi
 }
 
+function gengxin_opdiy() {
+  cd ${GITHUB_WORKSPACE}
+  rm -rf bendi && git clone https://github.com/shidahuilang/build-actions bendi
+  if [[ -d ${GITHUB_WORKSPACE}/bendi ]]; then
+    rm -rf ${GITHUB_WORKSPACE}/bendi/build/*/start-up
+    rm -rf ${GITHUB_WORKSPACE}/bendi/build/*/.config
+  else
+    print_error "OP_DIY文件下载失败,同步失败,请检查网络"
+    rm -rf ${GITHUB_WORKSPACE}/bendi
+    exit 1
+  fi
+  if [[ -d ${GITHUB_WORKSPACE}/bendi ]]; then
+    rm -rf commn && git clone https://github.com/shidahuilang/common commn
+    if [[ -d ${GITHUB_WORKSPACE}/commn ]]; then
+       rm -rf ${GITHUB_WORKSPACE}/commn/OP_DIY/*/config
+       cp -Rf ${GITHUB_WORKSPACE}/commn/OP_DIY/* ${GITHUB_WORKSPACE}/bendi/build/
+       cp -Rf ${GITHUB_WORKSPACE}/bendi/build/* ${GITHUB_WORKSPACE}/OP_DIY/
+    else
+      print_error "OP_DIY文件下载失败,同步失败,请检查网络"
+      rm -rf ${GITHUB_WORKSPACE}/{bendi,commn}
+      exit 1
+    fi
+  fi
+  rm -rf ${GITHUB_WORKSPACE}/{bendi,commn}
+  print_ok "同步上游OP_DIY文件完成!"
+}
+
 function bianyi_xuanxiang() {
   cd ${GITHUB_WORKSPACE}
   [[ ! -d ${GITHUB_WORKSPACE}/OP_DIY ]] && op_diywenjian
   source $GITHUB_WORKSPACE/OP_DIY/${matrixtarget}/settings.ini
   if [[ "${EVERY_INQUIRY}" == "true" ]]; then
     ECHOY "请在 OP_DIY/${matrixtarget} 里面设置好自定义文件"
-    ZDYSZ="设置完毕后，按[Y/y]回车继续编译"
+    ZDYSZ="设置完毕后，按[W/w]回车继续编译"
     if [[ "${WSL_ubuntu}" == "YES" ]]; then
       cd ${GITHUB_WORKSPACE}/OP_DIY/${matrixtarget}
       explorer.exe .
@@ -188,12 +226,12 @@ function bianyi_xuanxiang() {
     while :; do
       read -p " ${ZDYSZ}： " ZDYSZU
       case $ZDYSZU in
-      [Yy])
+      [Ww])
         echo
       break
       ;;
       *)
-        ZDYSZ="确认设置完毕后，请按[Y/y]回车继续编译"
+        ZDYSZ="提醒：确认设置完毕后，请按[W/w]回车继续编译"
       ;;
       esac
     done
@@ -233,7 +271,7 @@ function op_repo_branch() {
 }
 
 function op_jiaoben() {
-  if [[ ! -d ${HOME_PATH}/build ]]; then
+  if [[ ! -d "${HOME_PATH}/build" ]]; then
     cp -Rf ${GITHUB_WORKSPACE}/OP_DIY ${HOME_PATH}/build
   else
     cp -Rf ${GITHUB_WORKSPACE}/OP_DIY/* ${HOME_PATH}/build/
@@ -252,6 +290,11 @@ function op_diy_zdy() {
   cd ${HOME_PATH}
   source "${BUILD_PATH}/settings.ini"
   source "${BUILD_PATH}/common.sh" && Diy_menu
+  if [[ -d "${HOME_PATH}/feeds/danshui.tmp" ]]; then
+    if [[ ! -f "${LOCAL_Build}/chenggong" ]] || [[ ! -f "${LOCAL_Build}/shibai" ]]; then
+      echo "weiwan" > "${LOCAL_Build}/weiwan"
+    fi
+  fi
 }
 
 function op_diy_ip() {
@@ -260,13 +303,14 @@ function op_diy_ip() {
   [[ -z "${IP}" ]] && IP="$(grep 'ipaddr:' ${HOME_PATH}/package/base-files/files/bin/config_generate |egrep -o "[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+")"
   echo "${Mark_Core}" > ${HOME_PATH}/${Mark_Core}
   echo
-  ECHOY "您的后台IP地址为：$IP"
+  ECHOYY "您的后台IP地址为：$IP"
   if [[ "${REGULAR_UPDATE}" == "true" ]]; then
+    export Author=""
     export Github=${Github}
     export Warehouse="${Github##*com/}"
     export Author="$(echo "${Github}" |cut -d "/" -f4)"
     export Library="$(echo "${Github}" |cut -d "/" -f5)"
-    ECHOYY "您的Github地址为：$Github"
+    ECHOY "您的Github地址为：$Github"
     echo
   fi
   sleep 2
@@ -334,7 +378,14 @@ function tixing_op_config() {
     export TARGET_PROFILE="$(awk -F '[="]+' '/TARGET_BOARD/{print $2}' ${GITHUB_WORKSPACE}/OP_DIY/${matrixtarget}/${CONFIG_FILE})"
   fi
   export TARGET_BSGET="$HOME_PATH/bin/targets/$TARGET_BOARD/$TARGET_SUBTARGET"
-  [[ -z "${TARGET_PROFILE}" ]] && TARGET_PROFILE="OP_DIY/${matrixtarget}没有${CONFIG_FILE}文件,或者${CONFIG_FILE}文件内容为空"
+  if [[ -z "${TARGET_PROFILE}" ]]; then
+    if [[ -f ${BUILD_PATH}/.config ]]; then
+      cp -Rf ${BUILD_PATH}/.config ${GITHUB_WORKSPACE}/OP_DIY/${matrixtarget}/${CONFIG_FILE}
+      tixing_op_config
+    else
+      TARGET_PROFILE="OP_DIY/${matrixtarget}没有${CONFIG_FILE}文件,或者${CONFIG_FILE}文件内容为空"
+    fi
+  fi
 }
 
 function chenggong_op_config() {
@@ -450,6 +501,7 @@ function op_make() {
   fi
   if [[ `ls -a ${TARGET_BSGET} | grep -c "${TARGET_BOARD}"` == '0' ]]; then
     rm -rf ${LOCAL_Build}/chenggong > /dev/null 2>&1
+    rm -rf ${LOCAL_Build}/weiwan > /dev/null 2>&1
     echo "shibai" >${LOCAL_Build}/shibai
     print_error "编译失败~~!"
     print_error "请用工具把openwrt文件夹里面的[build.log]日志文件拖至电脑，然后查找失败原因"
@@ -457,9 +509,11 @@ function op_make() {
     exit 1
   else
     rm -rf ${LOCAL_Build}/shibai > /dev/null 2>&1
+    rm -rf ${LOCAL_Build}/weiwan > /dev/null 2>&1
     echo "chenggong" >${LOCAL_Build}/chenggong
     rm -rf ${HOME_PATH}/build.log
     ./scripts/diffconfig.sh > ${BUILD_PATH}/.config
+    export GUJIAN_TIME=`date +'%Y%m%d%H%M'`
   fi
 }
 
@@ -484,7 +538,8 @@ function op_upgrade3() {
     chmod +x Clear.sh && source Clear.sh
     rm -rf Clear.sh
   fi
-  rename -v "s/^openwrt/${SOURCE}/" * > /dev/null 2>&1
+  rename -v "s/^openwrt/${SOURCE}-${GUJIAN_TIME}/" * > /dev/null 2>&1
+  rename -v "s/sha256sums/${SOURCE}-${GUJIAN_TIME}-sha256sums/" * > /dev/null 2>&1
   cd ${HOME_PATH}
 }
 
@@ -684,6 +739,7 @@ function op_upgrade1() {
 }
 
 function op_again() {
+  export Tishi="1"
   cd ${HOME_PATH}
   op_firmware
   bianyi_xuanxiang
@@ -727,7 +783,7 @@ function menu() {
   cd ${GITHUB_WORKSPACE}
   curl -fsSL https://raw.githubusercontent.com/coolsnowwolf/lede/master/target/linux/x86/Makefile > Makefile
   export ledenh="$(egrep -o "KERNEL_PATCHVER:=[0-9]+\.[0-9]+" Makefile |cut -d "=" -f2)"
-  curl -fsSL https://raw.githubusercontent.com/Lienol/openwrt/main/target/linux/x86/Makefile > Makefile
+  curl -fsSL https://raw.githubusercontent.com/Lienol/openwrt/22.03/target/linux/x86/Makefile > Makefile
   export lienolnh="$(egrep -o "KERNEL_PATCHVER:=[0-9]+\.[0-9]+" Makefile |cut -d "=" -f2)"
   curl -fsSL https://raw.githubusercontent.com/immortalwrt/immortalwrt/openwrt-21.02/target/linux/x86/Makefile > Makefile
   export mortalnh="$(egrep -o "KERNEL_PATCHVER:=[0-9]+\.[0-9]+" Makefile |cut -d "=" -f2)"
@@ -739,7 +795,7 @@ function menu() {
   echo
   ECHOB "  请选择编译源码"
   ECHOY " 1. Lede_${ledenh}内核,LUCI 18.06版本(Lede_source)"
-  ECHOYY " 2. Lienol_${lienolnh}内核,LUCI Master版本(Lienol_source)"
+  ECHOYY " 2. Lienol_${lienolnh}内核,LUCI 22.03版本(Lienol_source)"
   echo
   ECHOYY " 3. Immortalwrt_${tianlingnh}内核,LUCI 18.06版本(Tianling_source)"
   ECHOY " 4. Immortalwrt_${mortalnh}内核,LUCI 21.02版本(Mortal_source)"
@@ -759,7 +815,7 @@ function menu() {
     ;;
     2)
       export matrixtarget="Lienol_source"
-      ECHOG "您选择了：Lienol_${lienolnh}内核,LUCI Master版本"
+      ECHOG "您选择了：Lienol_${lienolnh}内核,LUCI 22.03版本"
       openwrt_new
     break
     ;;
@@ -819,7 +875,7 @@ function menuop() {
   echo -e " ${Blue}OP_DIY配置文件机型${Font}：${Green}${TARGET_PROFILE}${Font}"
   echo
   echo
-  echo -e " 1${Green}.${Font}${Yellow}删除旧源码,重新下载[${matrixtarget}]源码编译${Font}(推荐)"
+  echo -e " 1${Green}.${Font}${Yellow}删除[${matrixtarget}]源码,重新下载[${matrixtarget}]源码编译${Font}(推荐)"
   echo
   echo -e " 2${Green}.${Font}${Yellow}保留缓存同步上游仓库源码,再次编译${Font}"
   echo
@@ -827,7 +883,9 @@ function menuop() {
   echo
   echo -e " 4${Green}.${Font}${Yellow}打包N1和晶晨系列CPU固件${Font}"
   echo
-  echo -e " 5${Green}.${Font}${Yellow}退出${Font}"
+  echo -e " 5${Green}.${Font}${Yellow}同步上游OP_DIY文件(不覆盖config配置文件)${Font}"
+  echo
+  echo -e " 6${Green}.${Font}${Yellow}退出${Font}"
   echo
   echo
   XUANZop="请输入数字"
@@ -839,7 +897,6 @@ function menuop() {
   break
   ;;
   2)
-    Tishi="1"
     op_again
   break
   ;;
@@ -850,8 +907,12 @@ function menuop() {
   4)
     op_amlogic
   break
-  ;;   
+  ;;
   5)
+    gengxin_opdiy
+  break
+  ;;
+  6)
     echo
     exit 0
     break
@@ -868,12 +929,16 @@ function mecuowu() {
   clear
   echo
   echo
-  echo -e " ${Yellow}您上回使用[${matrixtarget}]源码编译出现错误，请作如下选择${Font}"
+  if [[ ${weiwancheng} == "1" ]]; then
+    echo -e " ${Yellow}您上回使用[${matrixtarget}]源码未完成编译，请作如下选择${Font}"
+  else
+    echo -e " ${Red}您上回使用[${matrixtarget}]源码编译出现错误，请作如下选择${Font}"
+  fi
   echo
   echo
-  echo -e " 1${Red}.${Font}${Blue}删除旧源码,继续使用[${matrixtarget}]源码全新编译${Font}"
+  echo -e " 1${Red}.${Font}${Blue}删除[${matrixtarget}]源码,重新下载[${matrixtarget}]源码编译${Font}"
   echo
-  echo -e " 2${Red}.${Font}${Blue}使用旧源码继续编译(菜单)${Font}"
+  echo -e " 2${Red}.${Font}${Blue}继续使用旧的[${matrixtarget}]源码编译(菜单)${Font}"
   echo
   echo -e " 3${Red}.${Font}${Blue}更换其他作者源码(菜单)${Font}"
   echo
@@ -903,10 +968,17 @@ function mecuowu() {
   done
 }
 
-if [[ -f "${LOCAL_Build}/shibai" && -d "${GITHUB_WORKSPACE}/OP_DIY" ]]; then
+
+if [[ -f "${LOCAL_Build}/weiwan" && -d "${GITHUB_WORKSPACE}/OP_DIY" ]]; then
+	export weiwancheng="1"
+	mecuowu "$@"
+elif [[ -f "${LOCAL_Build}/shibai" && -d "${GITHUB_WORKSPACE}/OP_DIY" ]]; then
+	export weiwancheng=""
 	mecuowu "$@"
 elif [[ -d "${HOME_PATH}/package" && -d "${HOME_PATH}/target" && -d "${HOME_PATH}/toolchain" && -f "${LOCAL_Build}/chenggong" && -d "${GITHUB_WORKSPACE}/OP_DIY" ]]; then
+	export weiwancheng=""
 	menuop "$@"
 else
+	export weiwancheng=""
 	menu "$@"
 fi
