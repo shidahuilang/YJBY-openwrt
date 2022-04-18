@@ -13,6 +13,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/shidahuilang/YJBY-openwrt/ma
 ```sh
 bash <(curl -fsSL https://raw.githubusercontent.com/shidahuilang/YJBY-openwrt/main/makeconfig.sh)
 ```
+```
 - (WSL)修改安装目录
 - 首先查看所有分发版本
 wsl -l -v
@@ -26,3 +27,4 @@ wsl --import Ubuntu-20.04 i:\ubuntu i:\Ubuntu-20.04.tar --version 2
 ubuntu2004 config --default-user shuai
 删除tar文件(可选)
 del i:\Ubuntu-20.04.tar
+```
