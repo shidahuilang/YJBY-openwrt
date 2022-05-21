@@ -14,10 +14,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/shidahuilang/YJBY-openwrt/ma
 bash <(curl -fsSL https://raw.githubusercontent.com/shidahuilang/YJBY-openwrt/main/makeconfig.sh)
 ```
 
-- WSL报错：Error: 0x800701bc  执行更新命令
-```
-wsl --update
-```
+
 
 - (WSL)修改安装目录
 - 首先查看所有分发版本
