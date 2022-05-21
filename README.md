@@ -13,6 +13,11 @@ bash <(curl -fsSL https://raw.githubusercontent.com/shidahuilang/YJBY-openwrt/ma
 ```sh
 bash <(curl -fsSL https://raw.githubusercontent.com/shidahuilang/YJBY-openwrt/main/makeconfig.sh)
 ```
+```
+- win11安装wsl报错Error: 0x800701bc
+- 执行更新命令
+wsl --update
+```
 
 
 ```
