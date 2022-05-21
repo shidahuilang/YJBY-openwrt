@@ -30,3 +30,4 @@ ubuntu2004 config --default-user shuai
 删除tar文件(可选)
 del i:\Ubuntu-20.04.tar
 ```
+ 
