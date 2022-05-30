@@ -1072,9 +1072,4 @@ if [[ -d "${HOME_PATH}/package" && -d "${HOME_PATH}/target" && -d "${HOME_PATH}/
 	menuop "$@"
 else
 	menu "$@"
-firt_sh
-Diy_indexhtm
-Diy_patches
-Diy_upgrade1
-Diy_feeds
-}
+fi
