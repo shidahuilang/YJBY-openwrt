@@ -23,9 +23,14 @@ export GITHUB_WORKSPACE="$PWD"
 export OP_DIY="${GITHUB_WORKSPACE}/CONFIG_DIY"
 export HOME_PATH="${GITHUB_WORKSPACE}/op_config"
 export LOCAL_Build="${HOME_PATH}/build"
+export COMMON_SH="${HOME_PATH}/build/common/common.sh"
 export BASE_PATH="${HOME_PATH}/package/base-files/files"
 export NETIP="${HOME_PATH}/package/base-files/files/etc/networkip"
 export DELETE="${HOME_PATH}/package/base-files/files/etc/deletefile"
+export FIN_PATH="${HOME_PATH}/package/base-files/files/etc/FinishIng.sh"
+export KEEPD="${HOME_PATH}/package/base-files/files/lib/upgrade/keep.d/base-files-essential"
+export Author="$(grep "syslog" "/etc/group"|awk 'NR==1' |cut -d "," -f2)"
+export REPO_TOKEN="REPO_TOKEN"
 export date1="$(date +'%m-%d')"
 export bendi_script="1"
 
@@ -132,63 +137,88 @@ function op_diywenjian() {
   cd ${GITHUB_WORKSPACE}
   if [[ ! -d ${GITHUB_WORKSPACE}/CONFIG_DIY ]]; then
     rm -rf bendi && git clone https://github.com/shidahuilang/openwrt bendi
+    rm -rf ${GITHUB_WORKSPACE}/bendi/build/*/start-up
+    for X in $(find ./bendi -name ".config" |sed 's/.config//g'); do mv "${X}".config "${X}"config; done
+    for X in $(find ./bendi -name "diy-part.sh"); do
+      echo "
+      #!/bin/bash
+      # Copyright (c) 2019-2020 P3TERX <https://p3terx.com>
+      # 在此处增加插件
+      # 记住要跟云脚本同步才可以，如果你这里增加了插件源码，云端没增加，是编译不出来的
+      " > "${X}"
+      sed -i 's/^[ ]*//g' "${X}"
+      sed -i '/^$/d' "${X}"
+    done
+    for X in $(find ./bendi -name "settings.ini"); do
+      sed -i 's/.config/config/g' "${X}"
+      sed -i '/SSH_ACTIONS/d' "${X}"
+      sed -i '/UPLOAD_CONFIG/d' "${X}"
+      sed -i '/UPLOAD_FIRMWARE/d' "${X}"
+      sed -i '/UPLOAD_WETRANSFER/d' "${X}"
+      sed -i '/UPLOAD_RELEASE/d' "${X}"
+      sed -i '/SERVERCHAN_SCKEY/d' "${X}"
+      sed -i '/USE_CACHEWRTBUILD/d' "${X}"
+      sed -i '/REGULAR_UPDATE/d' "${X}"
+      sed -i '/BY_INFORMATION/d' "${X}"
+      echo -e "\nEVERY_INQUIRY="true"       # 是否每次都询问您要不要去设置自定义文件（true=开启）（false=关闭）" >> "${X}"
+      sed -i '/^$/d' "${X}"
+    done
     mv -f ${GITHUB_WORKSPACE}/bendi/build ${GITHUB_WORKSPACE}/CONFIG_DIY
-    rm -rf ${GITHUB_WORKSPACE}/CONFIG_DIY/*/start-up
-    rm -rf ${GITHUB_WORKSPACE}/CONFIG_DIY/*/.config
-    if [[ -d ${GITHUB_WORKSPACE}/CONFIG_DIY ]]; then
-      rm -rf bendi && git clone https://github.com/shidahuilang/common bendi
-      judge  "CONFIG_DIY文件下载"
-      cp -Rf ${GITHUB_WORKSPACE}/bendi/OP_DIY/* ${GITHUB_WORKSPACE}/CONFIG_DIY/
-    else
-      print_error "CONFIG_DIY文件下载失败"
-      exit 1
-    fi
-    rm -rf ${GITHUB_WORKSPACE}/bendi
+  fi
+  if [[ ! -d ${GITHUB_WORKSPACE}/CONFIG_DIY ]]; then
+    ECHOR "CONFIG_DIY文件下载失败，请检查网络网络再尝试"
+    exit 1
+  else
+    print_ok "CONFIG_DIY文件下载 完成"
   fi
 }
 
 function bianyi_xuanxiang() {
   cd ${GITHUB_WORKSPACE}
   [[ ! -d ${GITHUB_WORKSPACE}/CONFIG_DIY ]] && op_diywenjian
-  source $GITHUB_WORKSPACE/CONFIG_DIY/${matrixtarget}/settings.ini
+  if [ -z "$(ls -A "$GITHUB_WORKSPACE/CONFIG_DIY/${matrixtarget}/settings.ini" 2>/dev/null)" ]; then
+    ECHOR "错误提示：编译脚本缺少[settings.ini]名称的配置文件,请在[CONFIG_DIY/${matrixtarget}]文件夹内补齐"
+    exit 1
+  else
+    source "$GITHUB_WORKSPACE/CONFIG_DIY/${matrixtarget}/settings.ini"
+  fi
   if [[ "${EVERY_INQUIRY}" == "true" ]]; then
-    ECHOY "请在 CONFIG_DIY/${matrixtarget} 里面设置好自定义文件，主要是您要增加的插件，需要跟您的云端同步增加"
-    ZDYSZ="设置完毕后，按[Y/y]回车继续编译"
-    [[ "${WSL_ubuntu}" == "YES" ]] && explorer.exe .
+    clear
+    echo
+    echo
+    ECHOYY "如果您有额外增加插件，请在 CONFIG_DIY/${matrixtarget} 里面设置好自定义文件，记住要跟云编译脚本同步"
+    ECHOY "设置完毕后，按[W/w]回车继续编译"
+    ZDYSZ="请输入您的选择"
+    if [[ "${WSL_ubuntu}" == "YES" ]]; then
+      cd ${GITHUB_WORKSPACE}/CONFIG_DIY/${matrixtarget}
+      explorer.exe .
+      cd ${GITHUB_WORKSPACE}
+    fi
     while :; do
       read -p " ${ZDYSZ}： " ZDYSZU
       case $ZDYSZU in
-      [Yy])
+      [Ww])
         echo
       break
       ;;
       *)
-        ZDYSZ="确认设置完毕后，请按[Y/y]回车继续编译"
+        ZDYSZ="提醒：确认设置完毕后，请按[W/w]回车继续编译"
       ;;
       esac
     done
   fi
-  echo
-  echo
   source ${GITHUB_WORKSPACE}/CONFIG_DIY/${matrixtarget}/settings.ini > /dev/null 2>&1
-  tixing_op_config > /dev/null 2>&1
-  echo
-  echo -e "${Red} 提示${Font}：${Blue}您当前CONFIG_DIY自定义文件夹的配置机型为[${TARGET_PROFILE}]${Font}"
-  echo
-  ECHOGG "是否需要选择机型和增删插件?"
-  read -t 20 -p " [输入[ Y/y ]回车确认，直接回车则为否](不作处理,20秒自动跳过)： " MENUu
-  case $MENUu in
-  [Yy])
-    export Menuconfig="true"
-    ECHOYY "您执行机型和增删插件命令,请耐心等待程序运行至窗口弹出进行机型和插件配置!"
-  ;;
-  *)
-    export Menuconfig="false"
-    ECHORR "您已关闭选择机型和增删插件设置！"
-  ;;
-  esac
-  echo
-  sleep 2
+  curl -fsSL https://raw.githubusercontent.com/281677160/common/main/common.sh > common.sh
+  if [[ $? -ne 0 ]];then
+    curl -fsSL https://raw.iqiq.io/shidahuilang/common/main/common.sh > common.sh
+  fi
+  if [[ $? -eq 0 ]];then
+    source common.sh && Diy_repo_url
+    rm -fr common.sh
+  else
+    ECHOR "common文件下载失败，请检测网络后再用一键命令试试!"
+    exit 1
+  fi
 }
 
 function op_repo_branch() {
@@ -221,28 +251,29 @@ function op_diy_zdy() {
   source "${BUILD_PATH}/common.sh" && Diy_menu
 }
 
-function op_diy_ip() {
-  cd ${HOME_PATH}
-  IP="$(grep 'network.lan.ipaddr=' ${BUILD_PATH}/$DIY_PART_SH |cut -f1 -d# |egrep -o "[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+")"
-  [[ -z "${IP}" ]] && IP="$(grep 'ipaddr:' ${HOME_PATH}/package/base-files/files/bin/config_generate |egrep -o "[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+")"
-  echo "${Mark_Core}" > ${HOME_PATH}/${Mark_Core}
-  echo
-  ECHOY "您的后台IP地址为：$IP"
-  if [[ "${REGULAR_UPDATE}" == "true" ]]; then
-    export Github=${Github}
-    export Warehouse="${Github##*com/}"
-    export Author="$(echo "${Github}" |cut -d "/" -f4)"
-    export Library="$(echo "${Github}" |cut -d "/" -f5)"
-    ECHOYY "您的Github地址为：$Github"
-    echo
-  fi
-  sleep 2
-}
-
 function op_menuconfig() {
   cd ${HOME_PATH}
-  if [[ "${Menuconfig}" == "true" ]]; then
-    make menuconfig
+  make menuconfig
+  if [[ $? -ne 0 ]]; then
+    ECHOY "窗口分辨率太小，无法弹出设置更机型或插件的窗口"
+    ECHOG "请调整窗口分辨率后按[Y/y]继续,或者按[N/n]退出编译"
+    XUANMA="请输入您的选择"
+    while :; do
+    read -p " ${XUANMA}：" Make
+    case $Make in
+    [Yy])
+       op_menuconfig
+       break
+      ;;
+      [Nn])
+       exit 1
+      break
+    ;;
+    *)
+      XUANMA="输入错误,请输入[Y/n]"
+    ;;
+    esac
+    done
   fi
 }
 
@@ -272,7 +303,10 @@ function make_defconfig() {
 function op_end() {
   cd ${HOME_PATH}
   print_ok "配置文件制作完成，已经覆盖进[CONFIG_DIY/${matrixtarget}/${CONFIG_FILE}]文件中"
-  [[ "${WSL_ubuntu}" == "YES" ]] && explorer.exe .
+  if [[ "${WSL_ubuntu}" == "YES" ]]; then
+    cd ${OP_DIY}/${matrixtarget}
+    explorer.exe .
+  fi
   echo
 }
 
@@ -359,7 +393,6 @@ function op_again() {
   cd ${HOME_PATH}
   op_firmware
   bianyi_xuanxiang
-  op_diy_ip
   op_diywenjian
   op_jiaoben
   openwrt_gitpull
@@ -377,7 +410,6 @@ function openwrt_new() {
   op_repo_branch
   op_jiaoben
   op_diy_zdy
-  op_diy_ip
   op_menuconfig
   make_defconfig
   op_end
@@ -388,7 +420,7 @@ function menu() {
   cd ${GITHUB_WORKSPACE}
   curl -fsSL https://raw.githubusercontent.com/coolsnowwolf/lede/master/target/linux/x86/Makefile > Makefile
   export ledenh="$(egrep -o "KERNEL_PATCHVER:=[0-9]+\.[0-9]+" Makefile |cut -d "=" -f2)"
-  curl -fsSL https://raw.githubusercontent.com/Lienol/openwrt/main/target/linux/x86/Makefile > Makefile
+  curl -fsSL https://raw.githubusercontent.com/Lienol/openwrt/22.03/target/linux/x86/Makefile > Makefile
   export lienolnh="$(egrep -o "KERNEL_PATCHVER:=[0-9]+\.[0-9]+" Makefile |cut -d "=" -f2)"
   curl -fsSL https://raw.githubusercontent.com/immortalwrt/immortalwrt/openwrt-21.02/target/linux/x86/Makefile > Makefile
   export mortalnh="$(egrep -o "KERNEL_PATCHVER:=[0-9]+\.[0-9]+" Makefile |cut -d "=" -f2)"
@@ -404,7 +436,7 @@ function menu() {
   echo
   ECHOB "  请选择制作配置文件的源码"
   ECHOY " 1. Lede_${ledenh}内核,LUCI 18.06版本(Lede_source)"
-  ECHOYY " 2. Lienol_${lienolnh}内核,LUCI Master版本(Lienol_source)"
+  ECHOYY " 2. Lienol_${lienolnh}内核,LUCI 22.03版本(Lienol_source)"
   echo
   ECHOYY " 3. Immortalwrt_${tianlingnh}内核,LUCI 18.06版本(Tianling_source)"
   ECHOY " 4. Immortalwrt_${mortalnh}内核,LUCI 21.02版本(Mortal_source)"
