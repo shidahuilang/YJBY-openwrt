@@ -208,7 +208,7 @@ function bianyi_xuanxiang() {
     done
   fi
   source ${GITHUB_WORKSPACE}/CONFIG_DIY/${matrixtarget}/settings.ini > /dev/null 2>&1
-  curl -fsSL https://raw.githubusercontent.com/281677160/common/main/common.sh > common.sh
+  curl -fsSL https://raw.githubusercontent.com/shidahuilang/common/main/common.sh > common.sh
   if [[ $? -ne 0 ]];then
     curl -fsSL https://raw.iqiq.io/shidahuilang/common/main/common.sh > common.sh
   fi
