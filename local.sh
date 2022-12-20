@@ -1,11 +1,3 @@
-#!/bin/bash
-#====================================================
-#	System Request:Ubuntu 18.04lts/20.04lts/22.04lts
-#	Author:	dahuilang
-#	Dscription: Compile openwrt firmware
-#	github: https://github.com/shidahuilang/openwrt
-#====================================================
-
 # 字体颜色配置
 Green="\033[32m"
 Red="\033[31m"
@@ -119,7 +111,7 @@ if [[ `echo "${PATH}" |grep -c "Windows"` -ge '1' ]]; then
     read -t 30 -p " [输入[Y/y]回车结束编译,按说明解决路径问题,任意键使用临时解决方式](不作处理,30秒后继续编译)： " Bendi_Wsl
     case ${Bendi_Wsl} in
     [Yy])
-      ECHOYY "请到 https://github.com/shidahuilang/YJBY-openwrt 查看说明"
+      ECHOYY "请到 https://github.com/shidahuilang/openwrt 查看说明"
       exit 0
     ;;
     *)
@@ -411,14 +403,10 @@ cd ${GITHUB_WORKSPACE}
 sudo rm -rf ${HOME_PATH}
 git clone -b "${REPO_BRANCH}" --single-branch "${REPO_URL}" ${HOME_PATH}
 judge "源码下载"
-if [[ -d "${GITHUB_WORKSPACE}/build" ]]; then
-  cd ${HOME_PATH}
-  source ${GITHUB_WORKSPACE}/build/${FOLDER_NAME}/common.sh && Diy_checkout
-  mv -f ${GITHUB_WORKSPACE}/build ${HOME_PATH}/build
-else
-  cd ${HOME_PATH}
-  source ${GITHUB_WORKSPACE}/common.sh && Diy_checkout
-fi
+cd ${HOME_PATH}
+mkdir -p LICENSES/doc
+source ${GITHUB_WORKSPACE}/build/${FOLDER_NAME}/common.sh && Diy_checkout
+mv -f ${GITHUB_WORKSPACE}/build ${HOME_PATH}/build
 }
 
 function Bendi_Restore() {
@@ -502,9 +490,9 @@ if [[ "${MAKE_CONFIGURATION}" == "true" ]]; then
   LUCI_EDITION2="${LUCI_EDITION}"
   TARGET_PROFILE2="${TARGET_PROFILE}"
   SOURCE2="${SOURCE}"
-  " > ${HOME_PATH}/key-buildzu
-  sed -i 's/^[ ]*//g' ${HOME_PATH}/key-buildzu
-  sudo chmod +x ${HOME_PATH}/key-buildzu
+  " > ${HOME_PATH}/LICENSES/doc/key-buildzu
+  sed -i 's/^[ ]*//g' ${HOME_PATH}/LICENSES/doc/key-buildzu
+  sudo chmod +x ${HOME_PATH}/LICENSES/doc/key-buildzu
   ECHOG "配置已经存入${GITHUB_WORKSPACE}/config文件夹中"
   exit 0
 fi
@@ -551,13 +539,13 @@ REPO_BRANCH2="${REPO_BRANCH}"
 LUCI_EDITION2="${LUCI_EDITION}"
 TARGET_PROFILE2="${TARGET_PROFILE}"
 SOURCE2="${SOURCE}"
-" > ${HOME_PATH}/key-buildzu
+" > ${HOME_PATH}/LICENSES/doc/key-buildzu
+sed -i 's/^[ ]*//g' ${HOME_PATH}/LICENSES/doc/key-buildzu
+sudo chmod +x ${HOME_PATH}/LICENSES/doc/key-buildzu
 cd ${HOME_PATH}
 make defconfig
 [[ -d "${HOME_PATH}/build_logo" ]] && mkdir -p ${HOME_PATH}/build_logo
 make -j8 download |tee ${HOME_PATH}/build_logo/build.log
-sed -i 's/^[ ]*//g' ${HOME_PATH}/key-buildzu
-sudo chmod +x ${HOME_PATH}/key-buildzu
 
 if [[ `grep -c "make with -j1 V=s or V=sc" ${HOME_PATH}/build_logo/build.log` -eq '0' ]] || [[ `grep -c "ERROR" ${HOME_PATH}/build_logo/build.log` -eq '0' ]]; then
   print_ok "DL文件下载成功"
@@ -639,9 +627,9 @@ if [[ `ls -1 "${FIRMWARE_PATH}" |grep -c "${TARGET_BOARD}"` -eq '0' ]]; then
   LUCI_EDITION2="${LUCI_EDITION}"
   TARGET_PROFILE2="${TARGET_PROFILE}"
   SOURCE2="${SOURCE}"
-  " > ${HOME_PATH}/key-buildzu
-  sed -i 's/^[ ]*//g' ${HOME_PATH}/key-buildzu
-  sudo chmod +x ${HOME_PATH}/key-buildzu
+  " > ${HOME_PATH}/LICENSES/doc/key-buildzu
+  sed -i 's/^[ ]*//g' ${HOME_PATH}/LICENSES/doc/key-buildzu
+  sudo chmod +x ${HOME_PATH}/LICENSES/doc/key-buildzu
   exit 1
 else
   cp -Rf ${FIRMWARE_PATH}/config.buildinfo ${GITHUB_WORKSPACE}/operates/${FOLDER_NAME}/${CONFIG_FILE}
@@ -652,9 +640,9 @@ else
   LUCI_EDITION2="${LUCI_EDITION}"
   TARGET_PROFILE2="${TARGET_PROFILE}"
   SOURCE2="${SOURCE}"
-  " > ${HOME_PATH}/key-buildzu
-  sed -i 's/^[ ]*//g' ${HOME_PATH}/key-buildzu
-  sudo chmod +x ${HOME_PATH}/key-buildzu
+  " > ${HOME_PATH}/LICENSES/doc/key-buildzu
+  sed -i 's/^[ ]*//g' ${HOME_PATH}/LICENSES/doc/key-buildzu
+  sudo chmod +x ${HOME_PATH}/LICENSES/doc/key-buildzu
 fi
 }
 
@@ -718,7 +706,7 @@ function Bendi_Packaging() {
         judge "打包程序下载1"
         wget -q --no-check-certificate https://api.github.com/repos/ophub/kernel/contents/pub/stable -O amlogic/stable.api
         if [[ $? -ne 0 ]]; then
-          curl -fsSL https://api.github.com/repos/ophub/kernel/contents/pub/stable > amlogic/stable.api
+          curl -fsSL https://github.com/shidahuilang/common/releases/download/API/stable.api -o amlogic/stable.api
         fi
         if [[ `grep -c "name" amlogic/stable.api` -eq '0' ]]; then
           print_error "上游仓库amlogic内核版本API下载失败!"
@@ -1225,9 +1213,9 @@ if [[ -z "${FOLDERS}" ]]; then
 else
   KAIDUAN_JIANCE="0"
 fi
-if [[ -f "${HOME_PATH}/key-buildzu" ]]; then
+if [[ -f "${HOME_PATH}/LICENSES/doc/key-buildzu" ]]; then
   KAIDUAN_JIANCE="1"
-  source ${HOME_PATH}/key-buildzu
+  source ${HOME_PATH}/LICENSES/doc/key-buildzu
 else
   KAIDUAN_JIANCE="0"
 fi
